@@ -1,0 +1,20 @@
+#!/bin/sh
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
+export PATH
+
+for ip in `grep LOGIN /var/log/pop3d  | \
+    awk '{print $8}' | \
+    awk -F: '{print $4}'| \
+    sed '/]/s/]//g' | \
+    sort | \
+    uniq | \
+    egrep -v '127.0.0.1|10.10.10.10|192.168.0|192.168.1'`
+do
+    date > /var/spool/popauth/${ip}
+done 
+
+ls /var/spool/popauth/ | awk '{print $1 "    RELAY"}' > /etc/mail/popaccess
+cat /dev/null > /var/log/pop3d
+cat /etc/mail/access /etc/mail/popaccess | makemap hash /etc/mail/access.db 2>&1 > /dev/null
+

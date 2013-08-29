@@ -1,0 +1,1717 @@
+#!/bin/sh
+
+
+# Copyright (c) Sept 1 2001 Marina Brown
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#    - Redistributions of source code must retain the above copyright
+#      notice, this list of conditions and the following disclaimer.
+#    - Redistributions in binary form must reproduce the above
+#      copyright notice, this list of conditions and the following
+#      disclaimer in the documentation and/or other materials provided
+#      with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+
+########################
+# Set Global Variables #
+########################
+export PATH=/sbin:/usr/sbin:/usr/local/bin:/bin:/usr/bin
+export SYSTEM_PASSWD=/etc/passwd
+
+#######################################################
+# Surfadmin Passwd file Username:DES Encrypted passwd #
+#######################################################
+export PASSWD=/usr/local/surfadmin/passwd
+administrator=
+
+#######################################################
+# Surfadmin Passwd file Username:DES Encrypted passwd #
+#######################################################
+export surfadmin_group=surfadmin
+export surfadmin=/usr/local/sbin/surfadmin
+export SURFADMIN_GROUP=surfadmin
+export SURFADMIN_EDITOR=shell_script
+
+########################################################
+#     Mailbox, pop.lock and pop process info           #
+########################################################
+export MAILDIR=/var/mail
+export POPPER=cucipop
+
+########################################################
+#                     Echo Passwd                      #
+########################################################
+ECHOPASSWD=no
+
+#######################################################
+#         Virtusertable and Alias information          #
+########################################################
+export VIRTUSERDB=/etc/mail/virtusertable.db
+export VIRTUSERDIR=/etc/mail/virtusertable/
+export ALIASES=/etc/mail/aliases
+export NEWALIASES=/usr/bin/newaliases
+
+###################
+# Just a reminder #
+###################
+# lock = $maildir/${lusername).lock
+
+#######################################################
+# Test Entries - Be sure to comment out on deployment #
+#######################################################
+#export PASSWD=/home/marina/surfadmin/passwd
+#export MAILDIR=/home/marina/surfadmin
+#export POPPER=top
+
+####################################################################
+#                       login_admin                                #
+# login_admin authenticates users using the surfadmin passwd file. #
+# If authentication ok it sets the global variable administrator.  #
+####################################################################
+function login_admin
+{
+    clear
+    lusername=
+    administrator=
+    echo -n "Enter your user name : "
+    read lusername
+    pass_salt=`grep $lusername $PASSWD | sed '/^#/d'| awk -F: '{print $2}'`
+    salt=`echo $pass_salt| cut -c1-2`
+    echo -n Passwd: 
+    stty -echo
+    read userpass
+    stty echo
+
+    if test "$pass_salt" == ""
+    then
+        echo;echo
+        echo "Incorrect Login !"
+        echo;echo
+        (echo -n $lusername; echo " failed to log into surfadmin !"; date)| mail -s "surfadmin login" root 
+        echo "Press the any key to continue."
+        return
+    fi
+    if test "$userpass" == ""
+    then
+        echo;echo
+        echo "Incorrect Login !"
+        echo;echo
+        (echo -n $lusername; echo " failed to log into surfadmin !"; date)| mail -s "surfadmin login" root 
+        echo "Press the any key to continue."
+        return
+    fi
+
+    encipass=`encrypt -s $salt $userpass`
+    userpass=asfasdfasdfasdfasdfasgasg
+    userpass=
+
+    if [ $pass_salt !=  $encipass ]
+    then
+        echo;echo
+        echo "Incorrect Login !"
+        echo;echo
+        (echo -n $lusername; echo " failed to log into surfadmin !"; date)| mail -s "surfadmin login" root 
+        echo "Press the any key to continue."
+        read foo
+    else
+        administrator=$lusername
+        echo;echo
+        (echo -n $administrator; echo " logged into surfadmin !"; date)| mail -s "surfadmin login" root 
+        echo -n $administrator
+        echo " Be Carefull with what you do here !"
+        echo "We know WhErE you LIVE !"
+        echo;echo
+        echo "Press the any key to continue."
+        read foo
+    fi
+}
+
+####################################################################
+#                        logout_admin                              #
+# This function unsets the administrator and lusername so as to    #
+# block use of the program                                         #
+####################################################################
+function logout_admin
+{
+    clear
+    (echo -n $administrator; echo " logged out of surfadmin !"; date)| mail -s "surfadmin login" root 
+    administrator=
+    lusername=sfgsadfgafgfasdadfa
+    lusername=
+    echo "You have now been logged out !"
+    echo
+    echo "Press Enter to continue !"
+    read foo
+}
+
+####################################################################
+#                     authenticate_admin                           #
+# Self explanatory. This says if you can do anything. You must     #
+# login in order to do anything                                    #
+####################################################################
+function authenticate_admin
+{
+    if test "$administrator" == ""
+    then
+        return 1
+    else
+        return 0
+    fi
+}
+
+####################################################################
+#                         which_admin                              #
+#                    Mostly a test entry                           #
+####################################################################
+function which_admin
+{
+    clear;
+    echo;echo
+    if test "$administrator" == ""
+    then
+        echo "No One is Logged into this screen !"
+        echo
+    else
+        echo -n "Current admin is : "
+        echo $administrator
+    fi
+    echo
+    echo -n "Enter any key to continue."
+    read foo
+}
+
+
+############################################################### 
+#                  function protect_root                      #
+############################################################### 
+function protect_root
+{
+    lusername=`echo $lusername| sed -e '/\.\./s/\.\.//g' \
+                                    -e '/\//s/\///g' \
+                                    -e '/\`/s/\`//g' \
+                                    -e '/    /s/   //g' \
+                                    -e '/   /s/  //g' \
+                                    -e '/  /s/  //g' \
+                                    -e '/ /s/ //g' \
+                                    -e '/		/s/		 //g' \
+                                    -e '/	/s/	//g'`
+
+    echo $lusername | egrep \
+    '^root$|^daemon$|^operator$|^bin$|^uucp$|^www$|^named$|^nobody$|^surfadmin-|^httpd$|^marina$'\
+      > /dev/null 2>&1
+    if [ $? == "0" ]
+    then
+        echo "$administrator" "I'm afraid i can't let you do that !"
+        sleep 30
+        exit
+    fi
+}
+
+ 
+##############################################################
+#                      function vi_card                      #
+##############################################################
+function vi_card
+{
+authenticate_admin
+if [ $? = "0" ]
+then
+cat << EOF
+        vi modes                                      changing modes
+--------------------------------------------------------------------------- 
+screen - Move around the screen          | Screen -> Insert | i or a or o
+         with key commands               | Screen -> Ex     | :<ex command>
+insert - Type in data and unreliably     | Insert -> Screen | <escape> 
+         move around screen with arrows  | ex mode ends when you hit enter
+ex     - Do commands                     | or :q -- If really stuck :q!
+---------------    -------------------------------      ------------------------
+| ex commands |    |     Moving around the       |      | Screen Mode Commands |
+---------------    |   screen in screen mode     |      ------------------------
+quit    -  :q      |---------------------------- |       Go to line end  -  $
+write   -  :w      |              UP             |       G/T line begin  -  0
+quit w/o           |              k              |       replace         -  r
+saving  -  :q!     |                             |       delete          -  x 
+                   | RIGHT h              l LEFT |       forward search  -  /
+                   |                             |       backward search -  ?
+                   |             j               |       undo            -  u
+                   |            DOWN             |
+                   -------------------------------
+Note this WELL - There are many other commands in vi. Vi is CASE SENSITIVE so
+no NOT put your caplock on. If you mess up in a file, just do <escape> :q!.
+This will NOT work in caps. Be especially aware that a capitol J will join 
+lines.                 PRESS ENTER TO CONTINUE :
+EOF
+read foo
+clear
+echo -n "Do you want to read the man page for vi ? y/n : "
+read yesno
+if [ $yesno ]
+then
+    if [ $yesno == "y" ]
+    then
+        clear
+        echo -n "To exit the man page type 'q'. Press enter to continue : "
+        read foo
+        man vi
+    fi
+fi
+fi
+}
+
+
+####################################################################
+#                           toggle_vi                              #
+####################################################################
+function toggle_vi
+{
+    clear
+    authenticate_admin
+    if [ $? == 0 ]
+    then
+
+        echo "You were using $SURFADMIN_EDITOR."
+        if [ $SURFADMIN_EDITOR = shell_script ]
+        then
+            export SURFADMIN_EDITOR=vi
+        else
+            export SURFADMIN_EDITOR=shell_script
+        fi
+        echo "Now you are using $SURFADMIN_EDITOR."
+        echo "This Feature is not implemented Yet."
+        echo
+        echo -n "Press enter to continue : "
+        read foo
+    fi
+}
+    
+####################################################################
+#               addluser adds a new dialup user                    #
+#             Verification code not working totally                #
+####################################################################
+function addluser
+{
+    clear
+    lusername=
+
+    echo "Please do NOT enter any SPACES in any Field"
+    echo "Bugs need to be worked out before you do this"
+    echo
+
+    echo -n "Please enter lusername to add: "
+#   read lusername
+    while [ ! $lusername ]
+    do
+        echo "Letters and Numbers only. Must Not be totally 
+        echo "numberic or start" with a number"
+        echo
+        echo -n "Please enter lusername to add: "
+        read lusername
+        echo $lusername  | sed '/[a-zA-Z0-9]/s/[a-zA-Z0-9]//g' |grep  .
+        if [ $? == 0 ]
+        then
+            echo "This username contains problematic "
+            echo "charactars that may mess"
+            echo "up the system"
+            echo
+            echo -n "Use this username anyway yes/no : "
+            read yesno
+            if [ "$yesno" == "yes" ]
+            then
+                 echo -n "Are you absolutly positively sure  yes/no :"
+                 read yesno
+                 if [ "$yesno" != "yes" ]
+                 then
+                     return 
+                 fi
+            else
+                return
+            fi
+        fi
+    done
+    protect_root
+    echo $lusername | grep ^[0-9]
+    if [ $? == 0 ]
+    then
+        echo "Usernames MUST not start with a number."
+        sleep 1
+        echo -n "Press enter to continue : "
+        read foo
+        return
+    fi
+    foo=
+    encipass=
+    comment=
+    echo -n "First Name :"
+    read foo
+    comment=${comment}$foo
+    comment=${comment}-
+    echo -n "Last Name :"
+    read foo
+    comment=${comment}$foo
+    comment=${comment}-
+    echo -n "Middle Name or title :"
+    read foo
+    comment=${comment}$foo
+    echo -n "Dialup-0 Mailbox-1 : "
+    read foo
+    comment=${comment},${foo}
+    echo -n "Work Phone : "
+    read foo
+    comment=${comment},${foo}
+    echo -n "Home Phone : "
+    read foo
+    comment=${comment},${foo}
+    echo -n "Password : "
+    if [ $ECHOPASSWD == "no" ]
+    then
+        stty -echo
+    fi
+    read pass
+    stty echo
+    encipass=`encrypt $pass`
+    pass=asdfasdfasdfasdfasdf
+    pass=    
+
+    user add -s /usr/bin/false -c $comment -p $encipass $lusername
+    if [ $? != 0 ]
+    then
+        echo "     Command Failed !"
+        echo "or the password file is"
+        echo "        HOSED !"
+        echo "Press the ENTER key to continue : "
+        echo "You do know where the ENTER key is ?"
+        read foo
+        return
+    fi
+
+    (echo -n $administrator; echo -n " added the user : ";echo -n $lusername;echo " "; date)| mail -s "user added" root 
+}
+
+####################################################################
+#               zorch removes a user's account                     #
+####################################################################
+function zorch
+{
+    clear
+    authenticate_admin
+    if [ $? == 0 ]
+        then
+        lusername=
+        echo -n "Please enter lusername to ZORCH: "
+        read lusername
+        while [ ! $lusername ]
+        do
+            echo -n "Please enter lusername to ZORCH: "
+            read lusername
+        done
+        protect_root
+
+        userdel -r $lusername
+        userdel  $lusername
+        rm /var/mail/${lusername}
+
+        echo
+        echo -n $lusername
+        echo " has been ZORCHED !"
+        echo
+        echo  "Press the ENTER key to continue !"
+        read foo
+    fi
+        (echo -n $administrator; echo -n " zorched the user : ";echo -n $lusername;echo " "; date)| mail -s "user zorched" root 
+}
+ 
+####################################################################
+#                        passchange                                #
+#  This function changes a user's password. It is userfull when    #
+#  a luser forgets it's password or to lock out an abuser          #
+####################################################################
+function passchange
+{
+    clear
+    lusername=
+    passwdd=
+    authenticate_admin
+    if [ $? == 0 ]
+    then
+        echo -n "Please enter lusername to change password: "
+        read lusername
+        while [ ! $lusername ]
+        do
+            echo -n "Please enter lusername to change password: "
+            read lusername
+        done
+        protect_root
+
+        while [ ! $passwdd ]
+        do
+            if [ $ECHOPASSWD == "no" ]
+            then
+                stty -echo
+            fi
+            echo -n "Please enter luser's password !"
+            read passwdd
+            stty echo
+        done
+
+        encipass=
+        encipass=`encrypt $passwdd`
+        user mod -p $encipass $lusername
+        encipass=
+        passwdd=khjlkhkjhkljhkl
+        passwdd=
+        echo
+        echo -n "Press the ENTER key to continue :"
+        read foo
+    fi
+        (echo -n $administrator; echo -n " changed  ";echo -n $lusername;echo " 's password "; date)| mail -s "password change" root 
+}
+
+####################################################################
+#                        change_finger                             #
+#   This function changes a users finger information and protects  #
+#   root                                                           #
+####################################################################
+function change_finger
+{
+    clear
+    authenticate_admin
+    if [ $? == 0 ]
+    then
+        lusername=
+        echo; echo; echo -n "enter username to alter : "
+        read lusername
+        protect_root
+
+        if test "$lusername" == ""
+        then
+            echo "Changing root's info this way is not allowed ! "
+        else
+            if [ $lusername = "root" ]
+            then
+                exit
+            fi
+            foo=
+            comment=
+            echo "Please do NO enter spaces in ANY of the Fields"
+            echo "until i get the space bug worked out ! Please !"
+            echo
+            echo -n "First Name :"
+            read foo
+            comment=${comment}$foo
+            comment=${comment}-
+            echo -n "Last Name :"
+            read foo
+            comment=${comment}$foo
+            comment=${comment}-
+            echo -n "Middle Name or title :"
+            read foo
+            comment=${comment}$foo
+            echo -n "Dialup-0 Mailbox-1 : "
+            read foo
+            comment=${comment},${foo}
+            echo -n "Work Phone : "
+            read foo
+            comment=${comment},${foo}
+            echo -n "Home Phone : "
+            read foo
+            comment=${comment},${foo}
+            user mod -c $comment $lusername
+        fi
+        echo; echo; echo " Press enter to continue."; echo;
+        read foo
+    fi
+    (echo -n $administrator; echo -n " changed user info for: ";echo -n $lusername;echo " "; date)| mail -s "finger info changed" root 
+}
+
+####################################################################
+#                          print_menu                              #
+#     This function prints out the adminstrative lusers menu       #
+####################################################################
+function print_menu
+{
+    clear
+    cat << EOF
+-----------------------------------------------------------------------------
+-                        Surfers User Administration RADIUS SERVER          -
+-         Use control-c to exit or to stop unintended commands.             -
+-----------------------------------------------------------------------------
+
+    To Add a user enter        A:      View admins | intruders    F:
+    To Delete a user enter     D:      LOG IN                 login:
+    To Change a password enter P:      LOG OUT               logout:
+    To Block USE (nopay)       B:      Vi Tutorial                v:
+    To Unblock Mailbox         U:      Toggle vi/No vi           TV:       
+    To Change user info        N:      Toggle Echo [Passwds]     TE:
+    Check user entry           C:      Mailbox Admin menu        mb:
+    To exit  enter             X:      Surfadmin Root Menu       su:           
+    Which admin               WA:      Check for pop lock        cp:
+    Check Disk Space          df:      Grep Passwd file          gp:
+
+
+EOF
+    echo -n "                   Enter Action : "
+}
+
+
+####################################################################
+#                          block_mailbox                            #
+####################################################################
+function block_mailbox
+{
+    clear
+    authenticate_admin
+    if [ $? != 0 ]
+    then
+        return
+    fi
+    lusername=
+    echo
+    echo
+    echo "If you are not sure about this entry just hit enter ! "
+    echo -n "enter username to block : "
+    read lusername
+    if test "$lusername" == ""
+    then
+        echo "You didn't enter anything ! Cancelling ! "
+        echo
+    else
+        if [ $lusername = "root" ]
+        then
+            exit
+        fi
+        protect_root
+
+        user mod  -s /sbin/nologin $lusername
+        echo
+        echo "This user is blocked from downloading mail ! "
+        echo "Please don't ignore. The mail will build up !"
+        echo
+    fi
+    (echo -n $administrator; echo -n " blocked mailbox for: ";echo -n $lusername;echo " "; date)| mail -s "mailbox blocked" root 
+    echo " Press enter to continue."
+    echo
+    read foo
+}
+
+####################################################################
+#                       unblock_mailbox                            #
+####################################################################
+function unblock_mailbox
+{
+    authenticate_admin
+    if [ $? != 0 ]
+    then
+        return
+    fi
+    clear
+    lusername=
+    echo
+    echo
+    echo "If you are not sure about this entry just hit enter ! "
+    echo -n "enter username to unblock : "
+    read lusername
+    if test "$lusername" == ""
+    then
+        echo "You didn't enter anything ! Cancelling ! "
+        echo
+    else
+        if [ $lusername = "root" ]
+        then
+            exit
+        fi
+        protect_root
+        user mod -s /usr/bin/false $lusername
+        echo
+        echo "This user can now download mail ! "
+        echo
+    fi
+    (echo -n $administrator; echo -n " unblocked mailbox for: ";echo -n $lusername;echo " "; date)| mail -s "mailbox unblocked" root 
+    echo " Press enter to continue."
+    echo
+    read foo
+}
+
+
+#################################################################
+#   Functions for administering Mailboxes Please inprove the    #
+#   function for removing a pop lock, the lock could be copied  #
+#   to the mailbox for better performance                       #
+#################################################################
+#######################################################################
+#                         function rm_mailbox                         #
+#######################################################################
+# mailbox = $MAILDIR/${lusername)#
+##################################
+function rm_mailbox
+{
+    if [ "$administrator" == "root" ]
+    then
+        clear
+        echo -n "Enter the user who needs their mailbox cleared: "
+        lusername=
+        read lusername
+        protect_root
+        lusername=`echo "$lusername" | sed -e '/\.\./s/\.\.//g' \
+                                           -e '/\//s/\///g' \
+                                           -e '/\`/s/\`//g'`
+        if [ "$lusername" = "" ]
+        then
+            echo "You did not enter anything."
+            return
+        fi
+        test -f ${MAILDIR}/${lusername}
+        if [ $? == "0" ]
+        then
+            cat /dev/null > ${MAILDIR}/${lusername}
+            echo "Cleared ${MAILDIR}/${lusername}" 
+        else
+            echo "There was no ${MAILDIR}/${lusername}." 
+        fi
+        echo
+        echo -n "Press enter to continue: "
+        read foo
+    fi
+}
+
+
+##########################################################
+#               function rm_pop_lock                 #
+##########################################################
+function rm_pop_lock
+{
+    clear
+    if [ "$administrator" != "root" ]
+    then
+        return
+    fi
+    echo -n "Enter the user who needs a lock cleared: "
+    lusername=
+    read lusername
+    protect_root
+    lusername=`echo "$lusername" | sed -e '/\.\./s/\.\.//g' \
+                                       -e '/\//s/\///g' \
+                                       -e '/\`/s/\`//g'`
+
+    if [ "$lusername" = "" ]
+    then
+        echo "You did not enter anything."
+        echo
+        echo -n "Press enter to continue : "
+        return
+    fi
+    pidline=`ps -laU $lusername|grep $POPPER`
+    if [ $? == "0" ]
+    then
+        PID=`echo $pidline | awk '{print $2}'`
+        echo -n "There appears to be a running $POPPER - Kill it and \
+remove lock ? yes/no : "
+        read yesno
+        if [ $yesno = "yes" ] || [ $yesno = "y" ]
+        then
+            kill $PID
+            if [ $? != "0" ]
+            then
+                echo "$POPPER did not die. Trying again. "
+                kill $PID
+                if [ $? != "0" ]
+                then
+                    echo "$POPPER did not die. Trying again with kill -9. "
+                    kill -9 $PID
+                fi
+            fi
+            test -f ${MAILDIR}/${lusername}.lock
+            if [ $? == "0" ]
+            then
+                rm ${MAILDIR}/${lusername}.lock
+                echo "Removed ${MAILDIR}/${lusername}.lock"
+            else
+                echo "There was no ${MAILDIR}/${lusername}.lock."
+            fi
+        fi
+     else
+         echo "There is no running $POPPER for $lusername safe to remove lock."
+         test -f ${MAILDIR}/${lusername}.lock
+         if [ $? == "0" ]
+         then
+             rm ${MAILDIR}/${lusername}.lock
+             echo "Removed ${MAILDIR}/${lusername}.lock"
+         else
+             echo "There was no ${MAILDIR}/${lusername}.lock."
+         fi
+     fi 
+     echo
+     echo -n "Press enter to continue: "
+     read foo
+}
+
+
+#############################################################################
+#                       activate_virtusertable_changes                      #
+#############################################################################
+function activate_virtusertable_changes
+{
+    clear
+    if [ "$administrator" == "root" ]
+    then
+# this is temporary stuff ! #
+echo "This will create a new $VIRTUSERDB from the"
+echo "contents of ${VIRTUSERDIR}."
+echo "Coming soon to a mailserver at surferz."
+echo
+echo "press enter to continue : "
+read foo
+return
+# end temporary stuff #
+        cat ${VIRTUSERDIR}/* | makemap hash $VIRTUSERDB
+        echo "New Virtuser Database $VIRTUSERDB created."
+        echo
+        echo -n "Press Enter to continue : "
+        read foo
+    fi
+}
+
+
+##################################################################
+#                function add_or_modify_virtual_domain           #
+##################################################################
+function add_or_modify_virtual_domain
+{
+    clear
+    if [ "$administrator" != "root" ]
+    then
+        return
+    fi
+
+    echo "Not yet implemented."
+    echo -n "Read the Psuedocode that has been written y/n ? : "
+    read yesno
+    if [ "$yesno" != "y" ]
+    then
+        return
+    fi
+
+cat << EOF |more
+---------------------Add or Modify Virtual Domain-----------------
+Psuedocode 
+----------
+A) Verify that all data is safe from  dangerous chars and that only the
+   proper administrator is logged in. 
+1. explain that domain mail gets recieved as the foreign domain and is
+placed into a surferz mailbox. There can be specific forwards and/or
+a catch-all.
+
+2. get foreign domain. if there is an @ or surferz.net in the foreign domain
+explain to user why this is wrong and DUMP them out of the subroutine.
+check if the domain has two "."'s in it. If, yes dump them. 
+
+
+3. Check if foreign domain is in /etc/mail/relay-domains if not ask user if
+they want to add it.
+
+4.  Check if foreign domain is in /etc/mail/sendmail.cw if not ask user if
+they want to add it.
+
+-------
+5. Check if there is a /etc/mail/virtusertable/$domain file for the requested
+   domain. 
+
+   If not ask user if they wish to create one.
+   5a) To create domain table
+       echo abuse@${domain}	abuse@surferz.net >> /etc/mail/virtusertable/$domain
+   5b) Ask if user wants to add a catch-all address to get   
+       anythingnotexplicitlydefined@${domain} 
+
+       echo -n "Create a catch-all for anythingnotexplicitlydefined@${domain}\
+yes/no ? \n Highly recommended it will not interfere with explicit forwards"
+       read yesno
+       if [ $yesno == "yes" ]
+       then
+           echo "If destination is at surferz please "
+           echo " do NOT put in username@surferz.net."
+           echo "Just put in username. If elsewhere put in full address."
+           echo
+           echo -n "Enter catchall address : "
+           read catchall
+           # protect root ?
+           echo "@${domain}	$catchall" >> /etc/mail/virtusertable/$domain
+       fi
+       echo "Do you want to add more domain forwards yes/no : "
+       read yesno
+       while [ $yesno == "yes" ]
+       do
+           add_or_modify_virtusertable
+           echo "Do you want to add more domain forwards yes/no : "
+           read yesno
+       done
+
+           
+    #ELSE
+        CALL add_or_modify_virtusertable
+    END IF
+-------------------End Add Or modify virtual domain----------------
+EOF
+    echo
+    echo -n "Press enter to continue : "
+    read foo
+}
+
+######################################################
+#          function add_or_modify_virtusertable      #
+######################################################
+# This function adds one or more virutalusertable
+# entries into a domain's virtusertable. Be sure to
+# check the data and the administer.
+
+
+#################################################################
+#                         add_modify_alias                      #             
+#################################################################
+function add_modify_alias
+{
+
+clear
+if [ "$administrator" != "root" ]
+then
+    return
+fi
+echo -n "Add_modify_alias Not Yet Implemented. Read Psuedocode ? y/n : "
+read yesno
+if [ "$yesno" != "y" ]
+then
+    return
+fi
+
+cat << EOF | more
+# explain that aliases are for sending FROM a username@surferz.net to another
+# username, which may or may not be at surferz.
+
+#get surferz.net address
+# filter and verify surferz address, if bad bitch and return
+# check if alias is in $ALIASES if not get info and add the alias. 
+#   then newaliases
+# If alias is already in existance 
+#
+#  grep "^${lusername}:" $ALIASES
+#  
+# show user the existing entry.
+# ask user if they want to change entry.
+# If they want to change entry.
+# ask user if they want to use vi to
+# edit the $ALIAS file give option of posting VI tutorial card.
+# If EDITOR=vi, don't ask about vi tutorial.
+# If they edit it be sure to execute newaliases
+#
+# Loop ------
+# Ask for aliases one by one
+# read alias
+#  CHECK ALIAS FOR DATA SANITY
+# aliaslist=$aliaslist,$alias 
+#
+# When done --- End Loop ---
+#
+# echo "${lusername}:	$aliaslist >> $ALIASES
+# 
+#
+# USE vi -S to prevent users from getting out ! 
+EOF
+}
+
+###############################################################
+#                       delete_alias                          #
+###############################################################
+function delete_alias
+{
+    clear
+    if [ "$administrator" != "root" ]
+    then
+        return
+    fi 
+yesno=
+echo -n "Delete_alias Not Yet Implemented. read psuedocode y/n ? : "
+read yesno
+if [ "$yesno" != "y" ]
+then
+   return
+fi
+    clear
+    cat << EOF
+
+Check if the alias exists in $ALIASES
+
+EOF
+echo -n "Press enter to continue : "
+read foo
+}
+
+###############################################################
+#                  delete_virtual_domain                      #
+###############################################################
+function delete_virtual_domain
+{
+    clear
+    if [ "$administrator" != "root" ]
+    then
+        return
+    fi
+    echo -n "Delete_virtual_domain Not Yet Implemented. Read Psuedocode ? y/n : "
+    read yesno
+    if [ "$yesno" != "y" ]
+    then
+        return
+    fi
+    cat << EOF
+delete_virtual_domain not Yet Implemented !
+
+EOF
+    echo -n "Press enter to continue : "
+    read foo
+}
+
+##########################################################
+#              function check_for_pop_lock               #
+##########################################################
+function check_for_pop_lock
+{
+    clear
+    authenticate_admin
+    if [ $? != 0 ]
+    then
+        return
+    fi
+    echo -n "Enter the user to check for a pop.lock : "
+    lusername=
+    read lusername
+    protect_root
+    lusername=`echo "$lusername" | sed -e '/\.\./s/\.\.//g' \
+                                       -e '/\//s/\///g' \
+                                       -e '/\`/s/\`//g'`
+
+    if [ "$lusername" = "" ]
+    then
+        echo "You did not enter anything."
+        echo
+        echo -n "Press enter to continue : "
+        return
+    fi
+    clear
+    echo
+    pidline=`ps -laU $lusername|grep $POPPER`
+    if [ $? == "0" ]
+    then
+        PID=`echo $pidline | awk '{print $2}'`
+        echo "There appears to be a running $POPPER - PID $PID." 
+        echo
+     else
+        echo "There is no running $POPPER for $lusername."
+        echo
+     fi 
+     test -f ${MAILDIR}/${lusername}.lock
+     if [ $? == "0" ]
+     then
+         echo "Pop Lock is: "
+         ls -l ${MAILDIR}/${lusername}.lock
+     else
+         echo "There was no ${MAILDIR}/${lusername}.lock."
+     fi
+     echo
+     echo -n "Press enter to continue: "
+     read foo
+}
+
+
+
+
+###########################################################
+#             function print_mailbox_admin_menu           #
+###########################################################
+function print_mailbox_admin_menu
+{
+
+    clear
+    cat << EOF
+-----------------------------------------------------------------------------
+-         Mailbox Management Menu - Clear Pop Locks or Mailboxes            -
+-            Create Virtual Mailboxes and Mail forwarding                   -
+-----------------------------------------------------------------------------
+  Mailbox Repair
+ ---------------
+ Check for Pop Lock          CP:        To Log in                login:
+ Clear Pop Locked Mailbox    CL:        To Log out              logout:
+ Clear Corrupt Mailbox       CB:        Exit                         X:
+
+ Domain Mail and Mail Forwarding
+ -------------------------------
+ Add or modify an alias      MA:
+ Delete an alias             DA:
+
+ Add/Modify  virtual domain  MV:
+ Delete a virtual domain     DV:
+ Activate virt. dom. changes AV:
+
+
+EOF
+    echo -n "                   Enter Action : "
+}
+                  
+
+####################################################################
+#                      Mailbox Admin Loop                          #
+#   This loop creates an interactive menu for admins and techs to  #
+#   Enter and edit information without f-cking up the system.      #
+####################################################################
+function mailbox_admin_loop
+{
+while [ 1 ]
+do
+    print_mailbox_admin_menu
+    action=
+    read action
+
+    case "$action" in
+
+    login) login_admin ;;
+    logout) logout_admin ;;
+    cl) rm_pop_lock ;;
+    cb) rm_mailbox ;;
+    cp) check_for_pop_lock ;;
+    av) activate_virtusertable_changes ;;
+    mv) add_or_modify_virtual_domain ;;
+    dv) delete_virtual_domain ;;
+    ma) add_modify_alias ;;
+    da) delete_alias ;;
+    q|x)  
+        if [ "$administrator" == "root" ]
+        then
+            return 
+        fi
+        ;;
+    c)
+        authenticate_admin
+        if [ $? == 0 ]
+        then
+            clear
+            echo -n "Enter surfadmin user to check: "
+            read user
+            grep $user $PASSWD
+            grep surfadmin-${user} /etc/passwd
+            echo
+            echo "Press the any key to continue: "
+            read foo
+        fi
+    ;;
+    *)
+        if [ "$action" != "" ]
+        then
+            clear
+            echo
+            echo
+            echo "No Such Action \"${action}\" !"
+            echo "Press the ENTER key to continue !"
+            read foo
+        fi
+    ;;
+    esac
+done
+}
+
+
+
+####################################################################
+#                          log_out                                 #
+# This function exits the surfadmin program and reminds the user   #
+#      to log out of whatever other shells they are using          #
+####################################################################
+function log_out
+{
+    clear
+    authenticate_admin
+    if [ $? == 0 ]
+    then
+        i=0
+        while [ "$i" != "12" ]; do echo;  i=$(($i+1)); done
+        echo "                         Please Log out as well !"
+        sleep 1
+        exit
+    fi
+    (echo -n $administrator; echo " exited surfadmin ";date)| mail -s "exited surfadmin" root 
+}
+######################################
+
+function grep_passwd
+{
+    clear
+    authenticate_admin
+
+    echo -n "Search /etc/passwd for : "
+    read searchstring
+    searchstring=`echo "$searchstring" | sed -e '/\.\./s/\.\.//g' \
+                                       -e '/\//s/\///g' \
+                                       -e '/\`/s/\`//g'`
+
+    grep -i $searchstring /etc/passwd |more
+    echo
+    echo "Press the ANY key to continue"
+    read foo
+}
+
+####################################################################
+#                     print_admin_menu                             #
+#     This function prints out the adminstrative lusers menu       #
+####################################################################
+function print_admin_menu 
+{
+    clear
+    cat << EOF
+-----------------------------------------------------------------------------
+-              Surfadmin User Administration MAIL SERVER                    -
+-         Use control-c to exit or to stop unintended commands.             -
+-----------------------------------------------------------------------------
+
+               To Add a surfadmin user enter        A:
+               To Delete a surfadmin user enter     D:
+               To Change a surfadmin password enter P:
+               Check surfadmin user entry           C:      
+               LOG IN                           login:
+               LOG OUT                         logout:
+               To exit  enter                       X:      
+
+
+EOF
+    echo -n "                   Enter Action : "
+}
+
+
+#    (echo -n $administrator; echo -n " blocked mailbox for: ";echo -n $lusername;echo " "; date)| mail -s "mailbox blocked" root 
+
+
+
+##################################################################
+#                  function useradd_surfadmin                    #
+##################################################################
+function useradd_surfadmin
+{
+clear
+
+if [ $administrator ]
+then
+    if [ $administrator != "root" ]
+    then
+        return
+    fi
+else
+    return
+fi
+
+cat << EOF
+
+
+Note these users will be limited to surfadmin ONLY so
+they are marked as surfadmin-\$username for logging into
+the server. The admins will have to log in a second time
+using a different passwd to use surfadmin. There is a 
+separate passwd file for the surfadmin passwords. It is 
+located at $PASSWD.
+
+EOF
+echo -n "Understand ? yes/no: "
+read understand
+if [ $understand != "yes" ]
+then
+   return
+fi
+
+
+if [ $administrator == "root" ]
+then
+    echo -n "Enter new surfadmin username: "
+    read username
+    echo -n "Enter 2 charactars and ONLY 2 chars as DES salt: "
+    read foo
+    salt=`echo $foo| cut -c1-2`
+    echo -n "Enter new surfadmin user's passwd: "
+    if [ $ECHOPASSWD == "no" ]
+    then
+        stty -echo
+    fi
+    read passwdd
+    stty echo
+    encipass=`encrypt -s $salt $passwdd`
+    entry=
+    entry=${username}:${encipass}
+    echo
+    echo -n "Enter login password for surfadmin-$username : "
+    if [ $ECHOPASSWD == "no" ]
+    then
+        stty -echo
+    fi
+    read login_passwdd
+    stty echo
+    echo
+    echo $login_passwd
+    encipass=`encrypt $login_passwdd`
+    if [ $passwdd == $login_passwdd ]
+    then
+        echo "You did not read the instructions"
+        echo "The login password and the surfadmin"
+        echo "password cannot match."
+        return 1
+    fi
+    login_passwdd=adfasdfasdf
+    login_passwdd= 
+    passwdd=asdfasdfasdfasdfasd
+    passwd=
+    grep ^${username}: $PASSWD > /dev/null 2>&1
+    if [ $? == 0 ]
+    then
+        echo "There already is a surfadmin user:" $username
+        return
+    fi
+    grep ^surfadmin-${username}: $SYSTEM_PASSWD > /dev/null 2>&1
+    if [ $? == 0 ]
+    then
+        echo "There already is a system user:" $username
+        return
+    fi
+    echo $entry >> $PASSWD
+    user add -p $encipass -s $surfadmin -g $SURFADMIN_GROUP \
+             surfadmin-${username}
+    echo "Added system user surfadmin-${username}"
+    echo "Added surfadmin user" $username
+    echo "Use the system user passwd to log in "
+    echo "and your surfadmin passwd to activate surfadmin"
+    echo
+    echo "Press any key to continue : "
+    read foo
+else
+    echo "You're Busted - You do not belong here."
+    echo "You have to be logged in as surfadmin's root"
+    echo "Wait til i let you out."
+    sleep 5
+fi
+}
+
+###############################################################
+#                 function userdel_surfadmin                  #
+###############################################################
+function userdel_surfadmin
+{
+clear
+if [ $administrator ]
+then
+    if [ $administrator != "root" ]
+    then
+        return
+    fi
+else
+    return
+fi
+
+cat << EOF
+
+
+Note system users of surfadmin as surfadmin-\$username.
+The username for activating surfadmin does not have the
+"surfadmin- prefix. There is a separate passwd file for 
+the surfadmin passwords. It is located at $PASSWD. By
+deleting the user in this script you will delete BOTH the
+system user and the surfadmin user.
+
+EOF
+echo -n "Understand ? yes/no: "
+read understand
+if [ $understand != "yes" ]
+then
+   return
+fi
+
+
+if [ $administrator == root ]
+then
+    echo -n "Enter surfadmin user to be deleted : "
+    read username
+    grep ^${username}: $PASSWD > /dev/null 2>&1
+    if [ $? == 0 ]
+    then
+        echo "There is a surfadmin user:" $username
+        echo -n "Delete surfadmin user: " $username "?" "yes/no : "
+        read kil
+        if [ $kil == "yes" ]
+        then
+            ed $PASSWD << EOF > /dev/null 2>&1
+/^${username}:/d
+w
+q
+EOF
+        echo "Deleted surfadmin user" $username
+        fi
+    else
+        echo "No such surfadmin user" $username
+    fi
+
+    ######################
+    # Delete system-user #
+    ######################
+    grep ^surfadmin-${username}: $SYSTEM_PASSWD  > /dev/null 2>&1
+    if [ $? == 0 ]
+    then
+        echo "There is a system user:" surfadmin-${username}
+        echo -n "Delete system user: " surfadmin-${username} "?" "yes/no : "
+        read kil
+        if [ $kil == "yes" ]
+        then
+            user del surfadmin-${username}
+            echo "Deleted system user surfadmin-${username}"
+            echo
+            echo "Press enter to continue: "
+            read foo
+        fi
+    else
+        echo "no such system user" surfadmin-${username}
+    fi
+else
+    echo "You're Busted - You do not belong here."
+    echo "You have to be logged in as surfadmin's root"
+    echo "Wait til i let you out."
+    sleep 5
+fi
+}
+
+#################################################################
+#                   function usermod_surfadmin                  #
+#################################################################
+function usermod_surfadmin
+{
+clear
+if [ $administrator ]
+then
+    if [ $administrator != "root" ]
+    then
+        return
+    fi
+else
+    return
+fi
+
+cat << EOF
+
+           Change Surfadmin Passwds
+------------------------------------------------------
+Note these users will be limited to surfadmin ONLY so
+they are marked as surfadmin-\$username for logging into
+the server. The admins will have to log in a second time
+using a different passwd to use surfadmin. There is a 
+separate passwd file for the surfadmin passwords. It is 
+located at $PASSWD.
+
+EOF
+echo -n "Understand ? yes/no: "
+read understand
+if [ $understand != "yes" ]
+then
+   return
+fi
+
+
+if [ $administrator == root ]
+then
+    echo -n "Enter surfadmin username to be modified : "
+    read username
+    echo -n "Enter 2 charactars and ONLY 2 chars as DES salt: "
+    read foo
+    salt=`echo $foo| cut -c1-2`
+    echo -n "Enter user's new surfadmin passwd: "
+    if [ $ECHOPASSWD == "no" ]
+    then
+        stty -echo
+    fi
+    read passwdd
+    stty echo
+    encipass=`encrypt -s $salt $passwdd`
+    entry=
+    entry=${username}:${encipass}
+    echo
+    echo -n "Enter login password for surfadmin-$username : "
+    read login_passwdd
+    if [ $ECHOPASSWD == "no" ]
+    then
+        stty -echo
+    fi
+    stty echo
+    echo
+    echo $login_passwd
+    encipass=`encrypt $login_passwdd`
+    if [ $passwdd == $login_passwdd ]
+    then
+        echo "You did not read the instructions"
+        echo "The login password and the surfadmin"
+        echo "password cannot match."
+        read foo
+        return 0
+    fi
+    login_passwdd=adfasdfasdf
+    login_passwdd= 
+    passwdd=asdfasdfasdfasdfasd
+    passwd=
+    grep ^${username}: $PASSWD > /dev/null 2>&1
+    if [ $? == 0 ]
+    then
+            ed $PASSWD << EOF > /dev/null 2>&1
+/^${username}:/d
+w
+q
+EOF
+        echo $entry >> $PASSWD
+    else
+        echo "No such surfadmin user " $username "!"
+    fi
+
+    grep ^surfadmin-${username}: $SYSTEM_PASSWD > /dev/null 2>&1
+    if [ $? == 0 ]
+    then
+        echo "There already is a system user:" $username
+        user mod -p $encipass surfadmin-${username}
+    else
+        echo "No such system user " surfadmin-${username}
+    fi
+    echo "Modified system user surfadmin-${username}" 
+    echo "Modified surfadmin user" $username
+    echo "Use the system user passwd to log in "
+    echo "and the surfadmin passwd to activate surfadmin"
+    echo
+    echo "Press enter to continue"
+    read foo
+else
+    echo "You're Busted - You do not belong here."
+    echo "You have to be logged in as surfadmin's root"
+    echo "Wait til i let you out."
+    sleep 5
+fi
+}
+
+####################################################################
+#                         AdminLoop                                #
+#   This loop creates an interactive menu for admins and techs to  #
+#   Enter and edit information without f-cking up the system.      #
+####################################################################
+function admin_loop
+{
+while [ 1 ]
+do
+    print_admin_menu
+    action=
+    read action
+
+    case "$action" in
+
+    login) login_admin ;;
+    logout) logout_admin 
+            return ;;
+    a) useradd_surfadmin ;;
+    d) userdel_surfadmin ;;
+    p) usermod_surfadmin ;;
+    q|x) if [ $administrator ]
+       then
+           if [ $administrator == "root" ]
+           then
+               return
+           fi
+       fi
+       ;;
+    c)
+       if [ $administrator ]
+       then
+           if [ $administrator == "root" ]
+           then
+
+               clear
+               echo -n "Enter surfadmin user to check: "
+               read user
+               grep $user $PASSWD
+               grep surfadmin-${user} $SYSTEM_PASSWD 
+               echo
+               echo "Press the any key to continue: "
+               read foo
+            fi
+        fi
+    ;;
+    *)
+        if [ "$action" != "" ]
+        then
+            clear
+            echo
+            echo
+            echo "No Such Action \"${action}\" !"
+            echo "Press the ENTER key to continue !"
+            read foo
+        fi
+    esac
+done
+}
+
+####################################################################
+#                         Main Loop                                #
+#   This loop creates an interactive menu for admins and techs to  #
+#   Enter and edit user information without f-cking up the system. #
+####################################################################
+while [ 1 ]
+do
+    print_menu
+    action=
+    read action
+
+    case "$action" in
+
+    login) login_admin ;;
+    logout) logout_admin ;;
+    wa) which_admin ;;
+
+    a)
+        authenticate_admin
+        if [ $? == 0 ]
+        then
+            addluser
+            echo
+            echo " Press enter to continue."
+            echo
+            read foo
+        fi
+    ;;
+    d) zorch ;;
+    p) passchange ;;
+    q|x) 
+        authenticate_admin
+        if [ $? == 0 ]
+        then
+            exit
+        fi
+        ;;
+    f)
+        authenticate_admin
+        if [ $? == 0 ]
+        then
+            clear
+            echo
+            echo -n "People logged into "
+            hostname
+            echo "These should only be administrators !"
+            echo
+            finger
+            echo
+            echo "Press the any key to continue."
+            read foo
+        fi
+    ;;
+    c)
+        authenticate_admin
+        if [ $? == 0 ]
+        then
+            clear
+            lusername=
+            echo
+            echo
+            echo -n "enter username to check : "
+            read lusername
+            finger $lusername
+            echo
+            echo
+            echo -n " Press enter to continue."
+            echo
+            read foo
+        fi
+    ;;
+    b) block_mailbox ;;
+    u) unblock_mailbox ;;
+    m) add_mailbox ;;
+    n) change_finger ;;
+    gp) grep_passwd ;;
+    tv)toggle_vi ;;
+    v) vi_card ;;
+    df)
+        authenticate_admin
+        if [ $? == 0 ]
+        then
+            clear
+            df -k
+            echo
+            echo -n "Press enter to continue : "
+            read foo
+        fi
+        ;;
+    su) 
+        if [ "$administrator" == "root" ]
+        then
+            admin_loop 
+        else
+            clear
+            echo "Only root is allowed here"
+            echo
+            echo -n "Press any key to continue : "
+        fi
+    ;;
+    mb) 
+        if [ "$administrator" == "root" ]
+        then
+            mailbox_admin_loop
+        else
+            clear
+            echo "Only root is allowed here"
+            echo
+            echo -n "Press any key to continue : "
+        fi
+    ;;
+    te)
+        authenticate_admin
+        if [ $? == 0 ]
+        then
+            if [ $ECHOPASSWD == "no" ]
+            then
+                clear
+                echo
+                echo "Echoing passwords. This is insecure - be carefull."
+                ECHOPASSWD=yes
+                echo
+                sleep 1
+                echo -n "Press enter to continue : "
+                read foo
+            else
+                clear
+                echo
+                echo "Turning off password echo."
+                ECHOPASSWD=no
+                echo
+                echo -n "Press enter to continue : "
+                read foo
+            fi
+        fi
+    ;;
+    cp) check_for_pop_lock ;;
+     *)
+        if [ "$action" != "" ]
+        then
+            clear
+            echo
+            echo
+            echo "No Such Action \"${action}\" !"
+            echo "Press the ENTER key to continue !"
+            read foo
+        fi
+    esac
+done
+

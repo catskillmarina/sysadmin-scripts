@@ -1,0 +1,29 @@
+#!/bin/sh
+
+PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/sbin
+export PATH
+
+mailserver=$1
+
+blacklists=`rblcheck -s  relays.visi.com \
+                     -s  relays.ordb.org \
+                     -s  bl.spamcop.net \
+                     -s  dnsbl.sorbs.net \
+                     -s  opm.blitzed.org \
+                     -s  sbl.spamhaus.org \
+                     -s  sbl-xbl.spamhaus.org \
+                     -s  blackholes.five-ten-sg.com \
+                         $mailserver | \
+                     grep -v 'not RBL' \
+                     | awk '{print $5}' |awk -F. '{print $2}'`
+
+if [ "$blacklists" != "" ]
+then
+    echo "RBL CRITICAL" $blacklists
+    retval=2
+else
+    echo "RBL OK"
+    retval=0
+fi
+
+exit $retval

@@ -1,0 +1,87 @@
+                        Quick and Dirty pop before SMTP
+
+   There are many solutions to implement pop before SMTP including
+   a perl script that claims "to do it all". Recently i needed
+   to implement this quickly - so rather than wading through other
+   people's
+   code i hacked together a system that works well.
+
+   Note that the scripts will have to be modified for use on other systems
+   , however they are so trivially easy that anyone who has done a little
+   shell scripting and sysadmin should be able to do it. The script as it
+   is
+   is sendmail specific, but it can be adapted to postfix in just a couple
+   of
+   minutes.
+
+   First you need to edit your syslog.conf to log all of your pop logs to
+   a
+   throwaway file.
+
+   To do this, add a line like this to your syslog.conf be sure to use
+   tabs
+   rather than spaces when you enter the lines.
+
+
+!pop3d
+*.*                                             /var/log/pop3d
+
+
+
+   Create the logfile and reload your syslogd by doing:
+
+# touch /var/log/pop3d
+# ps -ax | grep syslogd
+42051  ??  Ss     5:06.54 syslogd
+# kill -1 42051
+
+
+   Edit this script to properly get the ip addresses of authenticated
+   users
+   from the new logfile you just created.
+#!/bin/sh
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
+export PATH
+
+for ip in `grep LOGIN /var/log/pop3d  | \
+    awk '{print $8}' | \
+    awk -F: '{print $4}'| \
+    sed '/]/s/]//g' | \
+    sort | \
+    uniq | \
+    egrep -v '127.0.0.1|10.10.10.10|192.168.0|0.0.0.0'`
+do
+    date > /var/spool/popauth/${ip}
+done
+
+ls /var/spool/popauth/ | awk '{print $1 "    RELAY"}' > /etc/mail/popaccess
+cat /dev/null > /var/log/pop3d
+cat /etc/mail/access /etc/mail/popaccess | makemap hash /etc/mail/access.db 2>&1
+ > /dev/null
+
+
+[1]
+
+   relay.txt Script only.
+
+   Add the script to your crontab - i run it every minute for users who
+   were
+   accustomed to using a proprietary mailserver that does not run on unix.
+
+*       *       *       *       *       /usr/local/bin/relay
+
+   All that is needed now is to remove the entries from /var/spool/popauth
+   That are old so as to prevent your mailserver from being used as a spam
+   relay. I wrote a very quick c program to accomplish this.
+
+   [2]cleanpopauthdir.txt
+
+   I run this program every 15 minutes from Cron to clean out entries that
+   have
+   not been updated in 30 minutes.
+
+References
+
+   1. http://e271.net/~marina/relay.txt
+   2. http://e271.net/~marina/cleanpopauthdir.txt
